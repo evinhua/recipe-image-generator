@@ -1,70 +1,165 @@
-# Getting Started with Create React App
+# Recipe to Image Generator
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A beautiful React application that transforms recipes into stunning dish visualizations using AI. Upload or paste your recipe, generate an image prompt using NVIDIA's AI models, and create beautiful food images using OpenAI's DALL-E.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- 🍽️ **Recipe Input**: Upload PDF, .docx, or .txt files, or paste text directly
+- 📄 **PDF Support**: Full PDF text extraction with page-by-page processing
+- 🤖 **AI-Powered Prompts**: Generate detailed image prompts using NVIDIA's language models
+- 🎯 **Simple Prompts**: Generate basic prompts without API calls
+- 🎨 **Image Generation**: Create beautiful dish images using OpenAI's DALL-E
+- 📱 **Responsive Design**: Works perfectly on desktop and mobile devices
+- ✨ **Smooth Animations**: Beautiful transitions and loading states
+- 🔧 **Proxy Server**: Handles CORS issues and API calls securely
+- 📊 **File Processing Status**: Real-time feedback during file upload and processing
 
-### `npm start`
+## Setup Instructions
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 1. Install Dependencies
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+```bash
+cd recipe-image-generator
+npm install
+```
 
-### `npm test`
+### 2. Configure API Keys
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Edit the `.env` file in the root directory and add your API keys:
 
-### `npm run build`
+```env
+REACT_APP_NVIDIA_API_KEY=your_nvidia_api_key_here
+REACT_APP_OPENAI_API_KEY=your_openai_api_key_here
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+#### Getting API Keys:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+**NVIDIA API Key:**
+1. Visit [NVIDIA API Catalog](https://integrate.api.nvidia.com)
+2. Sign up or log in
+3. Generate an API key
+4. Copy the key to your `.env` file
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+**OpenAI API Key:**
+1. Visit [OpenAI API](https://platform.openai.com/api-keys)
+2. Sign up or log in
+3. Create a new API key
+4. Copy the key to your `.env` file
 
-### `npm run eject`
+### 3. Start the Application
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+You have three options:
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+**Option 1: Run both server and client together (Recommended)**
+```bash
+npm run dev
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+**Option 2: Run separately**
+```bash
+# Terminal 1 - Start the proxy server
+npm run server
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+# Terminal 2 - Start the React app
+npm start
+```
 
-## Learn More
+**Option 3: Use simple prompts only (no server needed)**
+```bash
+npm start
+# Then use the "Simple Prompt" button instead of "Show (AI)"
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+The application will open at [http://localhost:3000](http://localhost:3000)
+The proxy server runs at [http://localhost:3001](http://localhost:3001)
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## How to Use
 
-### Code Splitting
+1. **Upload Recipe**: Click the "Upload Recipe" button to upload a PDF (.pdf), Word document (.docx), or text file (.txt), or paste your recipe directly into the text box
+2. **Select Model**: Choose an NVIDIA AI model from the dropdown (default is recommended)
+3. **Generate Prompt**: 
+   - Click "Show (AI)" to generate an AI-powered image description prompt
+   - Or click "Simple Prompt" for a basic prompt without API calls
+4. **Edit Prompt**: You can manually edit the generated prompt if needed
+5. **Generate Image**: Click "Generate" to create a beautiful image of your dish
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Troubleshooting
 
-### Analyzing the Bundle Size
+### Common Issues:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+1. **"Proxy server is not running"**: Make sure to start the server with `npm run server` or `npm run dev`
+2. **API Key Errors**: Make sure your API keys are correctly set in the `.env` file
+3. **PDF Issues**: 
+   - **Worker Error**: If you see "Failed to fetch dynamically imported module", restart the application
+   - **No text extracted**: The PDF might be image-based (scanned) or password protected
+   - **Processing fails**: Try converting the PDF to .docx or copy-paste the text directly
+   - **Large PDFs**: May take longer to process - watch the progress bar
+4. **File Upload Issues**: 
+   - **Best compatibility**: Word documents (.docx)
+   - **Fastest processing**: Text files (.txt) or direct paste
+   - **Limited support**: PDF files (depends on PDF type)
+5. **CORS Errors**: The proxy server should handle CORS issues. If you still get errors, try restarting both server and client
 
-### Making a Progressive Web App
+### Error Messages:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+- "Error generating prompt": Check your NVIDIA API key and internet connection
+- "Error generating image": Check your OpenAI API key and ensure you have sufficient credits
+- "No text found in PDF": The PDF might contain only images, be password protected, or be a scanned document
+- "PDF processing unavailable": Technical issue with PDF.js worker - try alternative file formats
+- "Error reading file": Try a different file format or paste the text directly
 
-### Advanced Configuration
+### PDF Troubleshooting Specifically:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+If PDF upload isn't working:
+1. **Check the browser console** for detailed error messages
+2. **Try a text-based PDF** (not scanned images)
+3. **Use online PDF-to-Word converters** as an alternative
+4. **Copy and paste** the text directly from the PDF viewer
+5. **Save as .txt file** from your PDF reader
 
-### Deployment
+## Supported File Formats
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+- **Word documents (.docx)** ✅ - Best compatibility and reliability
+- **Text files (.txt)** ✅ - Fastest processing, always works
+- **PDF files (.pdf)** ⚠️ - Limited support, depends on PDF type:
+  - ✅ Text-based PDFs (created from word processors)
+  - ❌ Scanned PDFs (images of text)
+  - ❌ Password-protected PDFs
+  - ❌ Complex layout PDFs (may not extract properly)
+- **Plain text** ✅ - Paste directly into the text area
 
-### `npm run build` fails to minify
+**Recommendation**: For best results, use .docx files or paste text directly.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## Technologies Used
+
+- **React** - Frontend framework
+- **Express.js** - Proxy server to handle API calls
+- **NVIDIA API** - AI language models for prompt generation
+- **OpenAI DALL-E** - Image generation
+- **PDF.js** - PDF text extraction and parsing
+- **Mammoth.js** - Word document parsing
+- **Axios** - HTTP client for API calls
+
+## Architecture
+
+The application uses a proxy server architecture to avoid CORS issues:
+
+```
+React App (localhost:3000) → Express Proxy (localhost:3001) → External APIs
+```
+
+This ensures secure API key handling and resolves browser CORS restrictions.
+
+## Development
+
+To contribute to this project:
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly with both server and client
+5. Submit a pull request
+
+## License
+
+This project is open source and available under the MIT License.
