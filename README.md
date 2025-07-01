@@ -5,14 +5,18 @@ A beautiful React application that transforms recipes into stunning dish visuali
 ## Features
 
 - 🍽️ **Recipe Input**: Upload PDF, .docx, or .txt files, or paste text directly
-- 📄 **PDF Support**: Full PDF text extraction with page-by-page processing
+- 📄 **Enhanced PDF Support**: 
+  - Smart text extraction with positioning awareness
+  - OCR support for scanned PDFs using Tesseract.js
+  - Automatic PDF analysis and processing recommendations
+  - Intelligent fallback between text extraction and OCR
 - 🤖 **AI-Powered Prompts**: Generate detailed image prompts using NVIDIA's language models
 - 🎯 **Simple Prompts**: Generate basic prompts without API calls
 - 🎨 **Image Generation**: Create beautiful dish images using OpenAI's DALL-E
 - 📱 **Responsive Design**: Works perfectly on desktop and mobile devices
 - ✨ **Smooth Animations**: Beautiful transitions and loading states
 - 🔧 **Proxy Server**: Handles CORS issues and API calls securely
-- 📊 **File Processing Status**: Real-time feedback during file upload and processing
+- 📊 **Advanced Processing**: Real-time progress tracking and intelligent error handling
 
 ## Setup Instructions
 
@@ -121,14 +125,15 @@ If PDF upload isn't working:
 
 - **Word documents (.docx)** ✅ - Best compatibility and reliability
 - **Text files (.txt)** ✅ - Fastest processing, always works
-- **PDF files (.pdf)** ⚠️ - Limited support, depends on PDF type:
-  - ✅ Text-based PDFs (created from word processors)
-  - ❌ Scanned PDFs (images of text)
-  - ❌ Password-protected PDFs
-  - ❌ Complex layout PDFs (may not extract properly)
+- **PDF files (.pdf)** ✅ - **Enhanced support with multiple processing methods:**
+  - ✅ **Text-based PDFs**: Fast, accurate extraction with formatting preservation
+  - ✅ **Scanned PDFs**: OCR processing using Tesseract.js (first 3 pages)
+  - ✅ **Mixed content PDFs**: Intelligent processing with automatic method selection
+  - ✅ **Smart analysis**: Automatic detection of PDF type and processing recommendations
+  - ⚠️ **Performance note**: OCR processing is slower but more comprehensive
 - **Plain text** ✅ - Paste directly into the text area
 
-**Recommendation**: For best results, use .docx files or paste text directly.
+**Recommendation**: All formats now have robust support. PDF processing includes both fast text extraction and OCR fallback for maximum compatibility.
 
 ## Technologies Used
 
@@ -137,6 +142,7 @@ If PDF upload isn't working:
 - **NVIDIA API** - AI language models for prompt generation
 - **OpenAI DALL-E** - Image generation
 - **PDF.js** - PDF text extraction and parsing
+- **Tesseract.js** - OCR engine for scanned document processing
 - **Mammoth.js** - Word document parsing
 - **Axios** - HTTP client for API calls
 

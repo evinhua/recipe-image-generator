@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
+import Tesseract from 'tesseract.js';
 import './App.css';
 
 const NVIDIA_MODELS = [
@@ -21,6 +22,245 @@ function App() {
     pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
     console.log('PDF.js worker configured:', pdfjsLib.GlobalWorkerOptions.workerSrc);
   }, []);
+
+  // Enhanced text processing function for better PDF text extraction
+  const processTextContent = async (textContent, page) => {
+    try {
+      // Get viewport for positioning calculations
+      const viewport = page.getViewport({ scale: 1.0 });
+      
+      // Sort text items by position (top to bottom, left to right)
+      const sortedItems = textContent.items.sort((a, b) => {
+        const yDiff = Math.abs(a.transform[5] - b.transform[5]);
+        if (yDiff < 5) { // Same line (within 5 units)
+          return a.transform[4] - b.transform[4]; // Sort by x position
+        }
+        return b.transform[5] - a.transform[5]; // Sort by y position (top to bottom)
+      });
+      
+      let processedText = '';
+      let currentY = null;
+      let lineText = '';
+      
+      for (let i = 0; i < sortedItems.length; i++) {
+        const item = sortedItems[i];
+        const itemY = Math.round(item.transform[5]);
+        
+        // Check if we're on a new line
+        if (currentY !== null && Math.abs(currentY - itemY) > 5) {
+          // Process the completed line
+          if (lineText.trim()) {
+            processedText += lineText.trim() + '\n';
+          }
+          lineText = '';
+        }
+        
+        currentY = itemY;
+        
+        // Add spacing between words if needed
+        if (lineText && !lineText.endsWith(' ') && !item.str.startsWith(' ')) {
+          lineText += ' ';
+        }
+        
+        lineText += item.str;
+      }
+      
+      // Add the last line
+      if (lineText.trim()) {
+        processedText += lineText.trim() + '\n';
+      }
+      
+      return processedText;
+      
+    } catch (error) {
+      console.warn('Error in enhanced text processing, falling back to simple extraction:', error);
+      // Fallback to simple text extraction
+      return textContent.items
+        .map(item => item.str)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+  };
+
+  // Analyze PDF to detect if it's likely a scanned document
+  const analyzePDFContent = async (pdf) => {
+    try {
+      let totalTextItems = 0;
+      let totalImages = 0;
+      let hasEmbeddedFonts = false;
+      
+      // Analyze first few pages
+      const pagesToAnalyze = Math.min(pdf.numPages, 3);
+      
+      for (let pageNum = 1; pageNum <= pagesToAnalyze; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        
+        // Check text content
+        const textContent = await page.getTextContent();
+        totalTextItems += textContent.items.length;
+        
+        // Check for embedded fonts (indicates text-based PDF)
+        const fonts = await page.getOperatorList();
+        if (fonts.fnArray && fonts.fnArray.length > 0) {
+          hasEmbeddedFonts = true;
+        }
+        
+        // Check for images
+        try {
+          const ops = await page.getOperatorList();
+          const imageOps = ops.fnArray.filter(fn => 
+            fn === pdfjsLib.OPS.paintImageXObject || 
+            fn === pdfjsLib.OPS.paintInlineImageXObject
+          );
+          totalImages += imageOps.length;
+        } catch (e) {
+          // Ignore errors in image detection
+        }
+      }
+      
+      const analysis = {
+        totalTextItems,
+        totalImages,
+        hasEmbeddedFonts,
+        likelyScanned: totalTextItems < 10 && totalImages > 0,
+        textDensity: totalTextItems / pagesToAnalyze,
+        recommendation: ''
+      };
+      
+      if (analysis.likelyScanned) {
+        analysis.recommendation = 'This appears to be a scanned PDF. OCR processing is recommended.';
+      } else if (analysis.textDensity > 50) {
+        analysis.recommendation = 'This appears to be a text-based PDF. Standard extraction should work well.';
+      } else {
+        analysis.recommendation = 'This PDF has mixed content. Try standard extraction first, then OCR if needed.';
+      }
+      
+      return analysis;
+      
+    } catch (error) {
+      console.warn('PDF analysis failed:', error);
+      return {
+        totalTextItems: 0,
+        totalImages: 0,
+        hasEmbeddedFonts: false,
+        likelyScanned: false,
+        textDensity: 0,
+        recommendation: 'Unable to analyze PDF structure.'
+      };
+    }
+  };
+
+  // OCR fallback for scanned PDFs
+  const tryOCRExtraction = async (pdf, maxPages = 3) => {
+    try {
+      setFileStatus('Attempting OCR text extraction from images...');
+      let ocrText = '';
+      const pagesToProcess = Math.min(pdf.numPages, maxPages);
+      
+      for (let pageNum = 1; pageNum <= pagesToProcess; pageNum++) {
+        setFileStatus(`Running OCR on page ${pageNum} of ${pagesToProcess}...`);
+        setProcessingProgress(Math.round((pageNum / pagesToProcess) * 100));
+        
+        try {
+          const page = await pdf.getPage(pageNum);
+          const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for better OCR
+          
+          // Create canvas to render PDF page as image
+          const canvas = document.createElement('canvas');
+          const context = canvas.getContext('2d');
+          canvas.height = viewport.height;
+          canvas.width = viewport.width;
+          
+          // Render PDF page to canvas
+          await page.render({
+            canvasContext: context,
+            viewport: viewport
+          }).promise;
+          
+          // Convert canvas to image data for OCR
+          const imageData = canvas.toDataURL('image/png');
+          
+          // Run OCR on the image
+          const { data: { text } } = await Tesseract.recognize(imageData, 'eng', {
+            logger: m => {
+              if (m.status === 'recognizing text') {
+                const progress = Math.round(m.progress * 100);
+                setFileStatus(`OCR processing page ${pageNum}: ${progress}%`);
+              }
+            }
+          });
+          
+          if (text && text.trim().length > 10) {
+            ocrText += text + '\n\n';
+          }
+          
+        } catch (pageError) {
+          console.warn(`OCR failed for page ${pageNum}:`, pageError);
+        }
+      }
+      
+      return ocrText.trim();
+      
+    } catch (ocrError) {
+      console.error('OCR extraction failed:', ocrError);
+      return '';
+    }
+  };
+
+  // Post-process extracted text to improve formatting
+  const postProcessExtractedText = (text) => {
+    if (!text) return '';
+    
+    let processed = text;
+    
+    // Fix common PDF extraction issues
+    processed = processed
+      // Remove excessive whitespace
+      .replace(/\s+/g, ' ')
+      // Fix broken words (common in PDF extraction)
+      .replace(/(\w)-\s+(\w)/g, '$1$2')
+      // Fix ingredient lists (common pattern: "• item" or "- item")
+      .replace(/([•\-\*])\s*([A-Za-z])/g, '\n$1 $2')
+      // Fix numbered lists
+      .replace(/(\d+\.)\s*([A-Za-z])/g, '\n$1 $2')
+      // Add line breaks before common recipe sections
+      .replace(/(Ingredients?|Instructions?|Directions?|Method|Steps?|Preparation):/gi, '\n\n$1:')
+      // Fix temperature and measurement formatting
+      .replace(/(\d+)\s*°\s*([CF])/g, '$1°$2')
+      .replace(/(\d+)\s*(cups?|tbsp|tsp|oz|lbs?|grams?|ml|liters?)/gi, '$1 $2')
+      // Remove multiple consecutive newlines
+      .replace(/\n{3,}/g, '\n\n')
+      // Trim whitespace
+      .trim();
+    
+    // Try to identify and format recipe sections
+    const lines = processed.split('\n');
+    const formattedLines = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      // Check if line looks like a section header
+      if (line.match(/^(ingredients?|instructions?|directions?|method|steps?|preparation|notes?|tips?):\s*$/i)) {
+        formattedLines.push('\n' + line.toUpperCase());
+      }
+      // Check if line looks like an ingredient (starts with amount or bullet)
+      else if (line.match(/^[\d\-•\*]\s*/) || line.match(/^\d+\/\d+/) || line.match(/^\d+\s+(cups?|tbsp|tsp|oz|lbs?)/i)) {
+        formattedLines.push('• ' + line.replace(/^[\-•\*]\s*/, ''));
+      }
+      // Check if line looks like a step (starts with number)
+      else if (line.match(/^\d+\.\s*/)) {
+        formattedLines.push('\n' + line);
+      }
+      else {
+        formattedLines.push(line);
+      }
+    }
+    
+    return formattedLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  };
   const [recipe, setRecipe] = useState('');
   const [selectedModel, setSelectedModel] = useState(NVIDIA_MODELS[0]);
   const [prompt, setPrompt] = useState('');
@@ -32,6 +272,7 @@ function App() {
   const [fileStatus, setFileStatus] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(0);
+  const [ocrEnabled, setOcrEnabled] = useState(true);
   const fileInputRef = useRef(null);
 
   // Drag and drop handlers
@@ -73,51 +314,138 @@ function App() {
       setProcessingProgress(0);
 
       if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-        // Handle PDF files with improved error handling
-        setFileStatus('Processing PDF file...');
-        console.log('Processing PDF file...');
+        // Enhanced PDF processing with better text extraction
+        setFileStatus('Initializing PDF processor...');
+        console.log('Processing PDF file with enhanced extraction...');
         
         try {
           const arrayBuffer = await file.arrayBuffer();
-          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          
+          // Configure PDF.js for better text extraction
+          const loadingTask = pdfjsLib.getDocument({
+            data: arrayBuffer,
+            useSystemFonts: true,
+            disableFontFace: false,
+            verbosity: 0 // Reduce console noise
+          });
+          
+          const pdf = await loadingTask.promise;
           let fullText = '';
+          let extractedPages = 0;
           
-          setFileStatus(`Extracting text from ${pdf.numPages} page(s)...`);
+          // Analyze PDF content first
+          setFileStatus('Analyzing PDF structure...');
+          const analysis = await analyzePDFContent(pdf);
+          console.log('PDF Analysis:', analysis);
           
-          // Extract text from all pages
+          setFileStatus(`${analysis.recommendation} Processing ${pdf.numPages} pages...`);
+          
+          // Extract text from all pages with enhanced processing
           for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
             const progress = Math.round((pageNum / pdf.numPages) * 100);
             setProcessingProgress(progress);
-            setFileStatus(`Processing page ${pageNum} of ${pdf.numPages} (${progress}%)...`);
+            setFileStatus(`Extracting text from page ${pageNum} of ${pdf.numPages} (${progress}%)...`);
             
             try {
               const page = await pdf.getPage(pageNum);
-              const textContent = await page.getTextContent();
-              const pageText = textContent.items
-                .map(item => item.str)
-                .join(' ')
-                .replace(/\s+/g, ' ')
-                .trim();
+              const textContent = await page.getTextContent({
+                normalizeWhitespace: true,
+                disableCombineTextItems: false
+              });
               
-              if (pageText) {
-                fullText += pageText + '\n';
+              // Enhanced text processing with better formatting
+              const pageText = await processTextContent(textContent, page);
+              
+              if (pageText && pageText.trim().length > 0) {
+                fullText += pageText + '\n\n';
+                extractedPages++;
               }
+              
+              // Add small delay to prevent browser freezing on large PDFs
+              if (pageNum % 5 === 0) {
+                await new Promise(resolve => setTimeout(resolve, 10));
+              }
+              
             } catch (pageError) {
               console.warn(`Error processing page ${pageNum}:`, pageError);
+              setFileStatus(`Warning: Could not process page ${pageNum}, continuing...`);
               // Continue with other pages
             }
           }
           
-          if (fullText.trim()) {
-            setRecipe(fullText.trim());
-            setFileStatus(`✅ Successfully extracted text from PDF (${pdf.numPages} pages)`);
-            console.log('PDF text extracted successfully');
+          // Post-process the extracted text
+          const cleanedText = postProcessExtractedText(fullText);
+          
+          if (cleanedText && cleanedText.trim().length > 10) {
+            setRecipe(cleanedText);
+            setFileStatus(`✅ Successfully extracted text from ${extractedPages}/${pdf.numPages} pages`);
+            console.log(`PDF text extracted successfully from ${extractedPages} pages`);
+            
+            // Show extraction statistics
+            setTimeout(() => {
+              setFileStatus(`📊 Extracted ${cleanedText.length} characters from ${extractedPages} pages`);
+            }, 2000);
+            
           } else {
-            setError('No text found in the PDF. This might be a scanned document or contain only images. Try using OCR software to convert it to text first, or copy-paste the text manually.');
-            setFileStatus('');
+            // Try OCR as fallback for scanned PDFs (if enabled or if analysis suggests it)
+            const shouldTryOCR = ocrEnabled || analysis.likelyScanned;
+            
+            if (shouldTryOCR) {
+              setFileStatus('No text found with standard extraction. Trying OCR...');
+              console.log('Attempting OCR fallback for scanned PDF');
+              
+              const ocrText = await tryOCRExtraction(pdf);
+              
+              if (ocrText && ocrText.trim().length > 10) {
+                const cleanedOcrText = postProcessExtractedText(ocrText);
+                setRecipe(cleanedOcrText);
+                setFileStatus(`✅ Successfully extracted text using OCR from ${Math.min(pdf.numPages, 3)} pages`);
+                console.log('OCR extraction successful');
+                
+                setTimeout(() => {
+                  setFileStatus(`🔍 OCR extracted ${cleanedOcrText.length} characters (first 3 pages only)`);
+                }, 2000);
+                
+              } else {
+                setError('OCR extraction failed to find readable text.\n\nTry these alternatives:\n• Ensure the PDF has clear, readable text\n• Use a higher quality scan if this is a scanned document\n• Copy and paste text directly from a PDF viewer\n• Convert the PDF to a Word document (.docx)');
+                setFileStatus('');
+              }
+            } else {
+              const errorMsg = extractedPages === 0 
+                ? 'No readable text found in the PDF. This appears to be a scanned document or contains only images.'
+                : 'Very little text was extracted. The PDF might have formatting issues or contain mostly images.';
+              
+              setError(`${errorMsg}\n\nSuggestions:\n• Enable OCR processing for scanned PDFs\n• Copy and paste text directly from a PDF viewer\n• Convert the PDF to a Word document (.docx)\n• Save the content as a plain text file (.txt)`);
+              setFileStatus('');
+            }
           }
         } catch (pdfError) {
           console.error('PDF parsing error:', pdfError);
+          
+          // Enhanced error handling with specific solutions
+          let errorMessage = 'Failed to process PDF file. ';
+          
+          if (pdfError.message.includes('Invalid PDF structure')) {
+            errorMessage += 'The PDF file appears to be corrupted or has an invalid structure.';
+          } else if (pdfError.message.includes('worker') || pdfError.message.includes('fetch')) {
+            errorMessage += 'PDF processing service is temporarily unavailable.';
+          } else if (pdfError.message.includes('password') || pdfError.name === 'PasswordException') {
+            errorMessage += 'This PDF is password protected and cannot be processed.';
+          } else if (pdfError.message.includes('XRef')) {
+            errorMessage += 'The PDF has structural issues that prevent text extraction.';
+          } else {
+            errorMessage += 'An unexpected error occurred during PDF processing.';
+          }
+          
+          errorMessage += '\n\nRecommended solutions:\n';
+          errorMessage += '• Try opening the PDF in a different viewer and copy-paste the text\n';
+          errorMessage += '• Convert the PDF to Word format (.docx) using online tools\n';
+          errorMessage += '• Use PDF repair tools if the file appears corrupted\n';
+          errorMessage += '• For scanned PDFs, use OCR software to extract text';
+          
+          setError(errorMessage);
+          setFileStatus('');
+        }
           
           // Provide helpful error messages and alternatives
           let errorMessage = 'Unable to process this PDF file. ';
@@ -402,9 +730,21 @@ Please provide only the image generation prompt, nothing else.`
               <p><strong>Supported formats:</strong></p>
               <p>✅ Word documents (.docx) - Best compatibility</p>
               <p>✅ Text files (.txt) - Fastest processing</p>
-              <p>⚠️ PDF files (.pdf) - Limited support*</p>
+              <p>⚠️ PDF files (.pdf) - Enhanced support with OCR*</p>
+              <div className="ocr-toggle">
+                <label className="toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={ocrEnabled}
+                    onChange={(e) => setOcrEnabled(e.target.checked)}
+                  />
+                  <span className="toggle-text">
+                    Enable OCR for scanned PDFs (slower but more accurate)
+                  </span>
+                </label>
+              </div>
               <p className="pdf-note">
-                *PDF support depends on the file type. If PDF doesn't work, try converting to .docx or copy-paste the text directly.
+                *PDF support includes text extraction and OCR for scanned documents. OCR processes first 3 pages only.
               </p>
             </div>
             <input
