@@ -6,10 +6,10 @@ A beautiful React application that transforms recipes into stunning dish visuali
 
 - 🍽️ **Recipe Input**: Upload PDF, .docx, or .txt files, or paste text directly
 - 📄 **Enhanced PDF Support**: 
-  - Smart text extraction with positioning awareness
+  - Smart text extraction for text-based PDFs
   - OCR support for scanned PDFs using Tesseract.js
-  - Automatic PDF analysis and processing recommendations
-  - Intelligent fallback between text extraction and OCR
+  - User-controlled OCR toggle for performance management
+  - Intelligent fallback system (text extraction → OCR → helpful guidance)
 - 🤖 **AI-Powered Prompts**: Generate detailed image prompts using NVIDIA's language models
 - 🎯 **Simple Prompts**: Generate basic prompts without API calls
 - 🎨 **Image Generation**: Create beautiful dish images using OpenAI's DALL-E
@@ -125,12 +125,12 @@ If PDF upload isn't working:
 
 - **Word documents (.docx)** ✅ - Best compatibility and reliability
 - **Text files (.txt)** ✅ - Fastest processing, always works
-- **PDF files (.pdf)** ✅ - **Enhanced support with multiple processing methods:**
-  - ✅ **Text-based PDFs**: Fast, accurate extraction with formatting preservation
-  - ✅ **Scanned PDFs**: OCR processing using Tesseract.js (first 3 pages)
-  - ✅ **Mixed content PDFs**: Intelligent processing with automatic method selection
-  - ✅ **Smart analysis**: Automatic detection of PDF type and processing recommendations
-  - ⚠️ **Performance note**: OCR processing is slower but more comprehensive
+- **PDF files (.pdf)** ✅ - **Enhanced support with dual processing:**
+  - ✅ **Text-based PDFs**: Fast, accurate extraction (all pages)
+  - ✅ **Scanned PDFs**: OCR processing using Tesseract.js (first 2 pages)
+  - ✅ **Smart fallback**: Automatically tries OCR when text extraction fails
+  - ✅ **User control**: Toggle OCR on/off for performance management
+  - ⚠️ **Performance note**: OCR is slower but works with image-based PDFs
 - **Plain text** ✅ - Paste directly into the text area
 
 **Recommendation**: All formats now have robust support. PDF processing includes both fast text extraction and OCR fallback for maximum compatibility.
