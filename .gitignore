@@ -9,6 +9,14 @@ node_modules/
 # Production
 /build
 
+# Public directory (but allow specific files)
+public/*
+!public/pdf.worker.min.js
+!public/index.html
+!public/favicon.ico
+!public/manifest.json
+!public/robots.txt
+
 # Environment variables (contains API keys)
 .env
 .env.local
